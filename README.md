@@ -7,6 +7,8 @@ This program does exactly what the title says. You can use it to compile any num
 
 You can either use the python script itself (with python installed) or get an executable available on the releases page.
 
+[Here](https://youtu.be/oWWGLlsFHE0)'s a video explaining how to use the converter.
+
 Most of the program is self-explanatory, but for those that don't understand, here's an overview of the UI:![picture](picture.png)
 
 1. Put in basic metadata for the mod here. Most of this is required by forge/fabric in order for the mod to load properly. Authors is a comma separated list (e.g., "John, George")
