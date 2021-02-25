@@ -1,4 +1,5 @@
-import os, sys, shutil, glob, json, zipfile
+import os, sys, shutil, glob, json, zipfile, re
+import os.path as path
 
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -8,6 +9,24 @@ import tkinter.messagebox as messagebox
 def set_entry(entry, text):
     entry.delete(0, tk.END)
     entry.insert(0, text)
+
+# Should put this into fpclib or make it into it's own library
+def merge(src, dst):
+    for src_dir, dirs, files in os.walk(src):
+        # Handle folder
+        dst_dir = src_dir.replace(src, dst, 1)
+        if path.isfile(dst_dir): os.remove(dst_dir)
+        if not path.isdir(dst_dir): os.makedirs(dst_dir, exist_ok=True)
+        
+        # Handle files
+        for f in files:
+            sfj = path.join(src_dir, f)
+            dfj = path.join(dst_dir, f)
+            if path.isdir(dfj): shutil.rmtree(dfj)
+            if path.isfile(dfj): os.remove(dfj)
+            shutil.copyfile(sfj, dfj)
+    shutil.rmtree(src)
+
 
 class Mainframe(tk.Tk):
     def __init__(self):
@@ -273,11 +292,16 @@ class Mainframe(tk.Tk):
             if not silent: messagebox.showerror(message=f"Error parsing file:\n{type(e).__name__}: {e}")
     
     def export(self):
+        modid = self.get_entry(1)
+        
+        fname = modid + "-" + self.get_entry(2)
+        while path.exists(fname+".jar"): fname += "_"
+        
         # Get modloader
         mlf = self.mlf.get()
         # Create temp folder
-        if os.path.isfile("mdrpmc-temp"): os.remove("mdrpmc-temp")
-        elif os.path.isdir("mdrpmc-temp"): shutil.rmtree("mdrpmc-temp")
+        if path.isfile("mdrpmc-temp"): os.remove("mdrpmc-temp")
+        elif path.isdir("mdrpmc-temp"): shutil.rmtree("mdrpmc-temp")
         os.mkdir("mdrpmc-temp")
         os.chdir("mdrpmc-temp")
         
@@ -285,8 +309,6 @@ class Mainframe(tk.Tk):
         os.mkdir("META-INF")
         with open("META-INF/MANIFEST.MF", "w") as file:
             file.write("Manifest-Version: 1.0\n\n")
-        
-        modid = self.get_entry(1)
         
         if mlf > 0: # Using fabric
             # Fabric metadata
@@ -370,19 +392,30 @@ side = "BOTH"
             if packloc.endswith(".zip"):
                 # Copy assets or data folders from zip to temp folder
                 with zipfile.ZipFile(packloc) as pack:
-                    flist = pack.namelist()
-                    if "assets/" in flist: pack.extract("assets/")
-                    if "data/" in flist: pack.extract("data/")
-            elif os.path.isdir(packloc):
+                    pack.extractall("t")
+                
+                # Move folders to the proper place in the temp folder
+                if path.isdir("t/assets"): merge("t/assets", "assets")
+                if path.isdir("t/data"): merge("t/data", "data")
+                
+                # Deal with people who think exporting zips containing the datapack inside a folder is okay
+                # (it's not >:(, get your flippin' datapacks correct!!!!!)
+                for f in glob.glob("t/*/assets"): merge(f, "assets")
+                for f in glob.glob("t/*/data"): merge(f, "data")
+                
+                # Delete unused extra files
+                shutil.rmtree("t")
+            elif path.isdir(packloc):
                 # Copy assets or data folders from folder to temp folder
-                assets = os.path.join(packloc, "assets")
-                data = os.path.join(packloc, "data")
-                if os.path.isdir(assets): shutil.copytree(assets, "assets", dirs_exist_ok=True)
-                if os.path.isdir(data): shutil.copytree(data, "data", dirs_exist_ok=True)
+                assets = path.join(packloc, "assets")
+                data = path.join(packloc, "data")
+                if path.isdir(assets): shutil.copytree(assets, "assets", dirs_exist_ok=True)
+                if path.isdir(data): shutil.copytree(data, "data", dirs_exist_ok=True)
         
         # Turn temp folder into jar file
         os.chdir("..")
-        fname = modid + "-" + self.get_entry(2)
+        if path.isfile(fname+".zip"): os.remove(fname+".zip")
+        elif path.isdir(fname+".zip"): shutil.rmtree(fname+".zip")
         shutil.make_archive(fname, "zip", "mdrpmc-temp")
         os.rename(fname+".zip", fname+".jar")
         
